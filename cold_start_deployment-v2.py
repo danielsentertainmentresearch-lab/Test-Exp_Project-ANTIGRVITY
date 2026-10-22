@@ -1,5 +1,6 @@
 import time
 import json
+import sys
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 
@@ -64,7 +65,7 @@ class ZeroContextAgentWithEviction:
         self.eviction_logs.append(eviction_record)
         return eviction_record
 
-    def ingest_stimulus(self, sender: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+    def ingest_stimulus(self, sender: str, payload: Dict[str, Any]) -> tuple[Dict[str, Any], Optional[Dict[str, Any]]]:
         """Ingests new input, measuring context window expansion and enforcing eviction policy."""
         payload_str = json.dumps(payload)
         payload_tokens = len(payload_str.split())
@@ -81,11 +82,10 @@ class ZeroContextAgentWithEviction:
         self.short_term_buffer.append(entry)
         
         # Enforce Context Eviction Cap
-        self.apply_eviction_policy()
-        
-        return entry
+        eviction = self.apply_eviction_policy()
+        return entry, eviction
 
-    def generate_response(self, action: str, output_data: Dict[str, Any]) -> Dict[str, Any]:
+    def generate_response(self, action: str, output_data: Dict[str, Any]) -> tuple[Dict[str, Any], Optional[Dict[str, Any]]]:
         """Generates agent response while managing context window bounds."""
         response_payload = {
             "agent_id": self.agent_id,
@@ -99,9 +99,20 @@ class ZeroContextAgentWithEviction:
         self.context_window_tokens += output_tokens
         
         # Enforce Context Eviction Cap
-        self.apply_eviction_policy()
-        
-        return response_payload
+        eviction = self.apply_eviction_policy()
+        return response_payload, eviction
+
+    def get_buffer_summary(self) -> str:
+        """Compact string representation of current short-term buffer."""
+        if not self.short_term_buffer:
+            return "[Empty Buffer]"
+        items = []
+        for item in self.short_term_buffer:
+            sender = item.get("sender", "self")
+            toks = item.get("tokens_added", 0)
+            action = item.get("payload", {}).get("action") or item.get("payload", {}).get("data", {}).get("status", "msg")
+            items.append(f"<{sender}:{action}(+{toks}t)>")
+        return " -> ".join(items)
 
 
 class ManagedColdStartRuntime:
@@ -112,38 +123,105 @@ class ManagedColdStartRuntime:
     def __init__(self, max_context_cap: int = 100):
         self.max_context_cap = max_context_cap
         self.agents: Dict[str, ZeroContextAgentWithEviction] = {}
+        self.history: List[Dict[str, Any]] = []
 
     def deploy_agent_cold_start(self, agent_id: str, role: str, system_directive: str) -> ZeroContextAgentWithEviction:
         agent = ZeroContextAgentWithEviction(agent_id, role, system_directive, max_context_tokens=self.max_context_cap)
         self.agents[agent_id] = agent
         return agent
 
-    def run_managed_simulation(self, cycles: int = 10):
-        print(f"=== RUNNING MANAGED COLD-START SIMULATION ({cycles} Cycles | Cap: {self.max_context_cap} Tokens) ===\n")
+    def run_managed_simulation(self, cycles: int = 10, verbose_inspect: bool = True):
+        print(f"\n{'='*80}")
+        print(f"=== ANTIGRVITY ZERO-CONTEXT RUNTIME ({cycles} Cycles | Cap: {self.max_context_cap} Tokens) ===")
+        print(f"{'='*80}\n")
         
         coordinator = self.deploy_agent_cold_start("Coordinator_Zero", "Orchestrator", "Coordinate multi-agent workflows.")
         executor = self.deploy_agent_cold_start("Executor_Zero", "Execution_Node", "Execute dApp verification actions.")
         observer = self.deploy_agent_cold_start("Observer_Zero", "Fine_Tuning_Observer", "Observe drift and evaluate real-time tuning.")
 
-        print(f"{'Cycle':<8} | {'Coordinator':<15} | {'Executor':<15} | {'Observer':<15} | {'Total Evictions'}")
-        print("-" * 75)
+        print(f"[BOOTSTRAP] Initialized 3 agents at Technical Zero context load:")
+        for a in self.agents.values():
+            print(f"  * {a.agent_id.ljust(18)} | Prompt: {a.system_prompt_tokens:2d} tokens | Cap: {a.max_context_tokens} tokens | Buffer: {len(a.short_term_buffer)} items")
+        print()
 
         for c in range(1, cycles + 1):
-            # Coordinator dispatch
-            coord_resp = coordinator.generate_response("DISPATCH", {"task": f"TASK_{c}", "cycle": c})
+            cycle_evictions = []
+
+            # 1. Coordinator dispatch
+            coord_resp, e1 = coordinator.generate_response("DISPATCH", {"task": f"TASK_{c}", "cycle": c})
+            if e1: cycle_evictions.append(e1)
             
-            # Executor ingest and output
-            executor.ingest_stimulus(coordinator.agent_id, coord_resp)
-            exec_resp = executor.generate_response("EXECUTE", {"status": "SUCCESS", "cycle": c})
+            # 2. Executor ingest and output
+            _, e2 = executor.ingest_stimulus(coordinator.agent_id, coord_resp)
+            if e2: cycle_evictions.append(e2)
+            exec_resp, e3 = executor.generate_response("EXECUTE", {"status": "SUCCESS", "cycle": c})
+            if e3: cycle_evictions.append(e3)
             
-            # Observer ingest and output
-            observer.ingest_stimulus(executor.agent_id, exec_resp)
-            obs_resp = observer.generate_response("FINE_TUNE", {"drift": False, "cycle": c})
+            # 3. Observer ingest and output
+            _, e4 = observer.ingest_stimulus(executor.agent_id, exec_resp)
+            if e4: cycle_evictions.append(e4)
+            obs_resp, e5 = observer.generate_response("FINE_TUNE", {"drift": False, "cycle": c})
+            if e5: cycle_evictions.append(e5)
+
+            # Record metrics
+            cycle_snapshot = {
+                "cycle": c,
+                "coordinator_tokens": coordinator.context_window_tokens,
+                "executor_tokens": executor.context_window_tokens,
+                "observer_tokens": observer.context_window_tokens,
+                "total_evictions": sum(len(a.eviction_logs) for a in self.agents.values()),
+                "new_evictions": len(cycle_evictions),
+            }
+            self.history.append(cycle_snapshot)
+
+            # Terminal Inspection Logging
+            print(f"{'-'*80}")
+            print(f"[CYCLE {c:02d}] Load: Coord={coordinator.context_window_tokens:3d}/{self.max_context_cap}t | Exec={executor.context_window_tokens:3d}/{self.max_context_cap}t | Obs={observer.context_window_tokens:3d}/{self.max_context_cap}t | Total Evictions={cycle_snapshot['total_evictions']}")
             
-            total_evictions = sum(len(a.eviction_logs) for a in self.agents.values())
-            print(f"Cycle {c:<3} | {coordinator.context_window_tokens:<15} | {executor.context_window_tokens:<15} | {observer.context_window_tokens:<15} | {total_evictions}")
+            if cycle_evictions:
+                for ev in cycle_evictions:
+                    print(f"  >> EVICTION EVENT: [{ev['agent_id']}] Tokens: {ev['tokens_before']} -> {ev['tokens_after']} (-{ev['tokens_before'] - ev['tokens_after']}t, {ev['items_evicted']} item(s) evicted)")
+
+            if verbose_inspect:
+                print(f"  [Memory & Buffer Inspection]")
+                print(f"    Coordinator: {coordinator.get_buffer_summary()} (Memory: {len(coordinator.working_memory)} entries)")
+                print(f"    Executor:    {executor.get_buffer_summary()} (Memory: {len(executor.working_memory)} entries)")
+                print(f"    Observer:    {observer.get_buffer_summary()} (Memory: {len(observer.working_memory)} entries)")
+
+        # Render Terminal Eviction Curve & Trajectory
+        self.render_eviction_curve()
+
+    def render_eviction_curve(self):
+        """Renders an ASCII eviction curve and summary table to stdout."""
+        print(f"\n{'='*80}")
+        print(f"=== CONTEXT LOAD & EVICTION TRAJECTORY CURVE ===")
+        print(f"{'='*80}")
+        print(f"{'Cycle':<7} | {'Coordinator':<18} | {'Executor':<18} | {'Observer':<18} | Evictions")
+        print(f"{'-'*80}")
+        
+        for h in self.history:
+            c = h["cycle"]
+            c_bar = "#" * int(h["coordinator_tokens"] / 10)
+            e_bar = "#" * int(h["executor_tokens"] / 10)
+            o_bar = "#" * int(h["observer_tokens"] / 10)
+            
+            c_str = f"{h['coordinator_tokens']:3d}t [{c_bar:<10}]"
+            e_str = f"{h['executor_tokens']:3d}t [{e_bar:<10}]"
+            o_str = f"{h['observer_tokens']:3d}t [{o_bar:<10}]"
+            
+            print(f"C_{c:<4} | {c_str} | {e_str} | {o_str} | {h['total_evictions']}")
+
+        print(f"{'='*80}")
+        print(f"[SUMMARY] Total Cycles: {len(self.history)} | Context Cap: {self.max_context_cap} tokens | Total Eviction Triggers: {self.history[-1]['total_evictions']}")
+        print(f"{'='*80}\n")
 
 
 if __name__ == "__main__":
+    cycles = 10
+    if len(sys.argv) > 1:
+        try:
+            cycles = int(sys.argv[1])
+        except ValueError:
+            pass
     runtime = ManagedColdStartRuntime(max_context_cap=100)
-    runtime.run_managed_simulation(cycles=10)
+    runtime.run_managed_simulation(cycles=cycles, verbose_inspect=True)
