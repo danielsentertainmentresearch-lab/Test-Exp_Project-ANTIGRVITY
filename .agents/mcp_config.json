@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "antigrvity-bridge": {
+      "command": "python",
+      "args": ["-m", "antigrvity.cli", "mcp-server"],
+      "env": {
+        "ANTIGRVITY_MODE": "server",
+        "PYTHONUNBUFFERED": "1"
+      }
+    }
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "$schema": "https://modelcontextprotocol.io/schema/mcp_config.json",
+  "mcpServers": {
+    "antigrvity-internal-tools": {
+      "command": "python",
+      "args": ["-m", "antigrvity.cli", "mcp-server"],
+      "env": {
+        "ANTIGRVITY_MODE": "server",
+        "PYTHONUNBUFFERED": "1"
+      },
+      "description": "Native Project ANTIGRVITY internal toolset: swarm dispatch, blackboard access, and orchestration control",
+      "auto_start": true,
+      "health_check_rpc": "ping"
+    },
+    "notebook-execution-bridge": {
+      "command": "python",
+      "args": ["-m", "antigrvity.mcp.tools.notebook_tools"],
+      "env": {
+        "JUPYTER_INTERACTION_ENABLED": "true"
+      },
+      "description": "Jupyter Notebook bridge enabling interactive cell execution and state inspection",
+      "auto_start": false
+    }
+  }
+}

@@ -1,0 +1,7 @@
+[mcp_servers.notebook_mcp_bridge]
+url = "http://rentahuman.ai"
+enabled = true
+
+[mcp_servers.notebook_mcp_bridge.headers]
+Authorization = "Bearer rah_YOUR_API_KEY"
+Content-Type = "application/json"

@@ -1,0 +1,62 @@
+{
+  "topology": "hierarchical-mesh",
+  "swarm_id": "antigrvity-alpha-cluster",
+  "version": "1.0.0",
+  "agents": [
+    {
+      "id": "orchestrator",
+      "name": "Lead Orchestrator",
+      "role": "coordinator",
+      "description": "Decomposes goals into execution DAGs, manages consensus, and oversees cold-start sequencing",
+      "capabilities": ["task_decomposition", "consensus_voting", "coldstart_bootstrap", "blackboard_write"],
+      "priority": 100,
+      "max_concurrency": 8,
+      "is_critical": true,
+      "system_prompt": "You are the Lead Orchestration Agent for Project ANTIGRVITY. Your role is to decompose complex objectives into ordered task graphs, delegate to specialist agents, and monitor execution state."
+    },
+    {
+      "id": "researcher",
+      "name": "Knowledge & Context Researcher",
+      "role": "analyst",
+      "description": "Retrieves documentation, inspects codebase contexts, and synthesizes state profiles",
+      "capabilities": ["codebase_search", "web_retrieval", "context_synthesis", "blackboard_read"],
+      "priority": 80,
+      "max_concurrency": 4,
+      "is_critical": false,
+      "system_prompt": "You are the Context & Knowledge Research Agent. You systematically explore codebases, gather dependency data, and synthesize information for the swarm."
+    },
+    {
+      "id": "synthesizer",
+      "name": "Artifact & Code Synthesizer",
+      "role": "worker",
+      "description": "Generates source code, configuration manifests, and structural artifacts",
+      "capabilities": ["code_generation", "refactoring", "mcp_tool_invocation", "blackboard_write"],
+      "priority": 75,
+      "max_concurrency": 4,
+      "is_critical": false,
+      "system_prompt": "You are the Code & Artifact Synthesizer. You produce clean, tested, documented, and production-grade software implementations based on orchestration directives."
+    },
+    {
+      "id": "reviewer",
+      "name": "Safety & Quality Reviewer",
+      "role": "evaluator",
+      "description": "Performs static validation, safety audit, diff analysis, and verification checks",
+      "capabilities": ["safety_audit", "diff_review", "compliance_validation", "consensus_voting"],
+      "priority": 85,
+      "max_concurrency": 2,
+      "is_critical": true,
+      "system_prompt": "You are the Safety & Verification Agent. You audit proposals, verify security and system constraints, and vote in consensus validations."
+    },
+    {
+      "id": "bridge_agent",
+      "name": "MCP Bridge Interface Agent",
+      "role": "bridge",
+      "description": "Multiplexes external tool invocations across downstream MCP servers and notebook runtime",
+      "capabilities": ["mcp_dispatch", "notebook_execution", "rpc_multiplexing", "tool_introspection"],
+      "priority": 90,
+      "max_concurrency": 16,
+      "is_critical": true,
+      "system_prompt": "You are the MCP Bridge Interface Agent. You route tool calls between the internal swarm and external MCP servers, handling protocol handshakes and error recovery."
+    }
+  ]
+}

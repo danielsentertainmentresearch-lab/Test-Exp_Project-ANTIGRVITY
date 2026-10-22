@@ -1,0 +1,72 @@
+{
+  "protocol_version": "2.0.0",
+  "environment": "production",
+  "timeouts": {
+    "system_probe_sec": 5.0,
+    "agent_handshake_sec": 8.0,
+    "mcp_negotiation_sec": 10.0,
+    "consensus_timeout_sec": 6.0,
+    "total_bootstrap_budget_sec": 30.0
+  },
+  "phases": [
+    {
+      "id": "phase_1_system_probe",
+      "name": "System & Runtime Capability Probe",
+      "required": true,
+      "checks": [
+        "python_runtime_check",
+        "workspace_filesystem_check",
+        "git_state_check",
+        "memory_and_compute_profile"
+      ]
+    },
+    {
+      "id": "phase_2_topology_bootstrap",
+      "name": "Agent Registry & Role Allocation",
+      "required": true,
+      "checks": [
+        "instantiate_agent_registry",
+        "allocate_critical_roles",
+        "verify_role_quorums"
+      ]
+    },
+    {
+      "id": "phase_3_mcp_bridge_warmup",
+      "name": "MCP Bridge Connection & Tool Discovery",
+      "required": true,
+      "checks": [
+        "start_mcp_bridge_multiplexer",
+        "ping_configured_mcp_servers",
+        "negotiate_tool_manifests",
+        "register_dynamic_rpc_endpoints"
+      ]
+    },
+    {
+      "id": "phase_4_state_consensus",
+      "name": "Blackboard Initialization & Consensus Handshake",
+      "required": true,
+      "checks": [
+        "initialize_blackboard_state",
+        "broadcast_agent_ready_heartbeats",
+        "reach_coldstart_consensus"
+      ]
+    },
+    {
+      "id": "phase_5_dispatch_ready",
+      "name": "Swarm Armed & Ready for Ingestion",
+      "required": true,
+      "checks": [
+        "verify_orchestrator_queue_active",
+        "mark_coldstart_complete",
+        "emit_ready_event"
+      ]
+    }
+  ],
+  "resilience": {
+    "max_phase_retries": 2,
+    "allow_graceful_degradation": true,
+    "quarantine_unhealthy_agents": true,
+    "min_critical_agents_ratio": 1.0,
+    "min_optional_agents_ratio": 0.5
+  }
+}
